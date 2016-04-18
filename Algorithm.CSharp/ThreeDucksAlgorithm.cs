@@ -32,14 +32,15 @@ namespace ClassLibrary_QuantConnect.Algorithms
     {
         private OrderTicket _orderTicket;
 
-        private DateTime previous;
-        private ExponentialMovingAverage fast;
-        private ExponentialMovingAverage slow;
-        private SimpleMovingAverage[] ribbon;
+        private DateTime _previous;
+        private ExponentialMovingAverage _fast;
+        private ExponentialMovingAverage _slow;
+        private SimpleMovingAverage[] _ribbon;
 
         private new const string Symbol = "EURUSD";
         private const decimal TenPips = 0.0010m;
-        private readonly Symbol _symbol = new Symbol(SecurityIdentifier.GenerateForex(Symbol, Market.FXCM),  Symbol);
+        private const decimal TwoPips = 0.0002m;
+        private readonly Symbol _symbol = new Symbol(SecurityIdentifier.GenerateForex(Symbol, Market.FXCM), Symbol);
 
         private SimpleMovingAverage _sma60;
         private SimpleMovingAverage _sma720;
@@ -54,7 +55,7 @@ namespace ClassLibrary_QuantConnect.Algorithms
         {
             // set up our analysis span
             SetStartDate(2014, 05, 01);
-            SetEndDate(2014, 05, 15);
+            SetEndDate(2014, 07, 01);
 
             // request SPY data with minute resolution
             AddSecurity(SecurityType.Forex, Symbol, Resolution.Minute);
@@ -74,7 +75,7 @@ namespace ClassLibrary_QuantConnect.Algorithms
             //ribbon = Enumerable.Range(0, ribbonCount).Select(x => SMA(Symbol, (x + 1)*ribbonInterval, Resolution.Daily)).ToArray();
         }
 
-        
+
         /// <summary>
         /// OnData event is the primary entry point for your algorithm. Each new data point will be pumped in here.
         /// </summary>
@@ -98,8 +99,10 @@ namespace ClassLibrary_QuantConnect.Algorithms
             var holdings = Portfolio[Symbol].Quantity;
             var currentPrice = Portfolio[Symbol].Price;
 
+            var ordersCount = Portfolio.Transactions.OrdersCount;
+
             // we only want to go long if we're currently short or flat
-            if (holdings <= 0)
+            if (ordersCount <= 0)
             {
                 //// if the fast is greater than the slow, we'll go long
                 //if (fast > slow * (1 + tolerance))
@@ -122,9 +125,12 @@ namespace ClassLibrary_QuantConnect.Algorithms
                         if (currentPrice <= _sma60)
                         {
                             //open order
-                            //SetHoldings(Symbol, 1);
+                            //SetHoldings(_symbol, 0.1);
                             //MarketOrder(_symbol, 1);
-                            _orderTicket = LimitOrder(_symbol, 1, currentPrice + TenPips);
+                            //_orderTicket = LimitOrder(_symbol, 1, currentPrice + TwoPips);
+                            //StopLimitOrder(_symbol, 1, currentPrice - TenPips, currentPrice + TwoPips);
+                            StopLoss = StopMarketOrder(Symbol, -10, currentPrice - TwoPips);
+                            StopLoss.Update(new UpdateOrderFields { StopPrice = currentPrice + TenPips });
                         }
                     }
                 }
@@ -143,11 +149,12 @@ namespace ClassLibrary_QuantConnect.Algorithms
                         if (currentPrice >= _sma60)
                         {
                             //open order
-                            //SetHoldings("EURUSD", 1);
-                            _orderTicket = LimitOrder(_symbol, 1, currentPrice - TenPips);
-
+                            //SetHoldings(_symbol, 0.1);
+                            //_orderTicket = LimitOrder(_symbol, 1, currentPrice - TwoPips);
+                            //StopLimitOrder(_symbol, 1, currentPrice + TenPips, currentPrice - TwoPips);
+                            StopLoss = StopMarketOrder(Symbol, 10, currentPrice + TwoPips);
+                            StopLoss.Update(new UpdateOrderFields { StopPrice = currentPrice - TenPips });
                         }
-                        
                     }
                 }
             }
@@ -161,12 +168,14 @@ namespace ClassLibrary_QuantConnect.Algorithms
             //}
 
             //Plot(Symbol, "Price", data[Symbol].Price);
-            
+
             //// easily plot indicators, the series name will be the name of the indicator
             //Plot(Symbol, fast, slow);
             //Plot("Ribbon", ribbon);
 
             //previous = data.Time;
         }
+
+        public OrderTicket StopLoss { get; set; }
     }
 }
